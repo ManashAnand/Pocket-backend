@@ -16,7 +16,7 @@ def nice_health():
     return {"health": "nice"}
 
 
-@router.post("/oauth/callback")
+@router.get("/oauth/callback")
 def oauth_callback(code: str):
     """
     Exchange the Google 'code' for access + refresh tokens
