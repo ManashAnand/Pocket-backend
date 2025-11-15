@@ -1,66 +1,41 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from ..helper.gmail_helper import (
-    printx,
-    fetch_latest_emails,
     get_service,
+    fetch_latest_emails,
     complete_oauth,
-    create_auth_url,
 )
 
 router = APIRouter()
 
 
-@router.get('/nice-health')
+@router.get("/nice-health")
 def nice_health():
-    printx()
     return {"health": "nice"}
 
 
-@router.get("/oauth/callback")
-def oauth_callback(code: str):
-    import requests
-    import json
-    import os
-
-    data = {
-        "code": code,
-        "client_id": os.environ["GOOGLE_CLIENT_ID"],
-        "client_secret": os.environ["GOOGLE_CLIENT_SECRET"],
-        "redirect_uri": os.environ["GOOGLE_REDIRECT_URI"],
-        "grant_type": "authorization_code"
-    }
-
-    token_res = requests.post("https://oauth2.googleapis.com/token", data=data)
-    token_json = token_res.json()
-
-    print("TOKEN RESPONSE:", token_json)
-
-    if "access_token" not in token_json:
-        return {"error": token_json}
-
-    with open("token.json", "w") as token:
-        token.write(json.dumps(token_json))
-
-    return {"status": "success", "details": "Google account connected!"}
-
-
 @router.get("/emails/latest")
-def get_latest_emails(limit: int = 5):
+def get_latest_emails(user_email: str, limit: int = 5):
+    """Check if token exists → fetch emails OR return OAuth URL."""
+    service = get_service(user_email)
+
+    if isinstance(service, dict) and "auth_url" in service:
+        return {"auth_url": service["auth_url"]}
+
+    emails = fetch_latest_emails(limit, service)
+    return {"emails": emails}
+
+
+@router.get("/oauth/callback")
+def oauth_callback(code: str, state: str):
     """
-    If no token.json → return OAuth URL
-    If token exists → fetch emails
+    Google redirects with:
+    - code = authorization code
+    - state = user_email (we passed earlier)
     """
+    user_email = state  # state contains email
+
     try:
-        service = get_service()
-
-        # First-time login → return URL
-        if service == "NEEDS_AUTH":
-            return {"auth_url": create_auth_url()}
-
-        # Authenticated → fetch emails
-        emails = fetch_latest_emails(limit)
-        return {"emails": emails}
-
+        complete_oauth(code, user_email)
+        return {"status": "success", "message": "Google account linked!"}
     except Exception as e:
-        print(e)
         return {"error": str(e)}
