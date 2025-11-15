@@ -55,6 +55,7 @@ __pycache__/
 *.pyc
 *.pyo
 
+backend/router/__pycache__/*
 # Virtual environment
 venv/
 

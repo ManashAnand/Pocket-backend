@@ -27,6 +27,7 @@ android/local.properties
 # --- Python Backend ---
 backend/venv/
 backend/__pycache__/
+backend/router/__pycache__/*
 backend/**/*.pyc
 
 # Environment variables

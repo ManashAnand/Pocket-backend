@@ -18,12 +18,30 @@ def nice_health():
 
 @router.get("/oauth/callback")
 def oauth_callback(code: str):
-    """
-    Exchange the Google 'code' for access + refresh tokens
-    """
-    creds = complete_oauth(code)
-    
-    return {"status": "success"}
+    import requests
+    import json
+    import os
+
+    data = {
+        "code": code,
+        "client_id": os.environ["GOOGLE_CLIENT_ID"],
+        "client_secret": os.environ["GOOGLE_CLIENT_SECRET"],
+        "redirect_uri": os.environ["GOOGLE_REDIRECT_URI"],
+        "grant_type": "authorization_code"
+    }
+
+    token_res = requests.post("https://oauth2.googleapis.com/token", data=data)
+    token_json = token_res.json()
+
+    print("TOKEN RESPONSE:", token_json)
+
+    if "access_token" not in token_json:
+        return {"error": token_json}
+
+    with open("token.json", "w") as token:
+        token.write(json.dumps(token_json))
+
+    return {"status": "success", "details": "Google account connected!"}
 
 
 @router.get("/emails/latest")
