@@ -1,0 +1,69 @@
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Expo
+.expo/
+.expo-shared/
+expo-env.d.ts
+
+# Metro & Bundler
+dist/
+.bundle/
+
+# iOS
+ios/build/
+ios/Pods/
+ios/*.xcworkspace
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+xcuserdata/
+
+# Android
+android/.gradle/
+android/app/build/
+android/.idea/
+android/local.properties
+
+# Logs
+*.log
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Environment Variables
+.env
+.env.local
+.env.*.local
+
+# Temporary files
+tmp/
+temp/
+
+
+backend/venv/*
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Virtual environment
+venv/
+
+# Environment file
+.env
+
+# Compiled
+*.so
+
+# IDE
+.vscode/
+.idea/

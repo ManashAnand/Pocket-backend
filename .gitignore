@@ -1,0 +1,53 @@
+# --- React Native / Expo ---
+node_modules/
+.expo/
+.expo-shared/
+expo-env.d.ts
+
+# Metro / Bundler
+dist/
+.bundle/
+
+# iOS
+ios/build/
+ios/Pods/
+ios/*.xcworkspace
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+xcuserdata/
+
+# Android
+android/.gradle/
+android/app/build/
+android/.idea/
+android/local.properties
+
+# --- Python Backend ---
+backend/venv/
+backend/__pycache__/
+backend/**/*.pyc
+
+# Environment variables
+.env
+.env.*
+backend/.env
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Temporary
+tmp/
+temp/
+
+# --- Frontend RN Folder ---
+pocketApp/node_modules/
+pocketApp/.expo/
+pocketApp/.vscode/

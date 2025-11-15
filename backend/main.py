@@ -3,6 +3,10 @@ from typing import Union
 from fastapi import FastAPI
 from .router import router
 
+from dotenv import load_dotenv
+load_dotenv()
+
+
 
 
 app = FastAPI()
