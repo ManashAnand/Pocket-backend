@@ -1,3 +1,3 @@
-from .gmail_helper import printx,fetch_latest_emails,get_service
+from .gmail_helper import fetch_latest_emails,get_service
 
-__all__ = [printx,fetch_latest_emails,get_service]
+__all__ = [fetch_latest_emails,get_service]
