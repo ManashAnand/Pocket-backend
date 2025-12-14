@@ -100,11 +100,15 @@ Your task:
 2. If yes, classify the status.
 
 A REAL job application update means:
-- confirmation that YOU applied
+- confirmation or acknowledgement that YOU applied
+- confirmation that your application was received
+- referral confirmation
+- application status updates
 - online assessment / coding test
 - interview scheduling
 - rejection
 - offer
+
 
 NOT real job updates:
 - job listings or promotions

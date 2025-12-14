@@ -52,7 +52,7 @@ export default function FetchScreen() {
       const res = await fetch(
         `${BACKEND}/emails/latest?user_email=${encodeURIComponent(
           email.trim()
-        )}&limit=150`
+        )}&limit=300`
       );
 
       const data = await res.json();
