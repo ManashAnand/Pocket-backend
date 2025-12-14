@@ -6,26 +6,6 @@ import json
 
 client = Groq(api_key=os.environ["GROQ_API_KEY"])
 
-def extract_json(text: str) -> str:
-    """
-    Extract JSON array from LLM output.
-    Handles ```json fences and extra commentary.
-    """
-    text = text.strip()
-
-    # Remove markdown fences
-    if text.startswith("```"):
-        text = text.split("```")[1]
-
-    # Find first '[' and last ']'
-    start = text.find("[")
-    end = text.rfind("]")
-
-    if start == -1 or end == -1:
-        raise ValueError("No JSON array found")
-
-    return text[start:end + 1]
-
 async def get_all_jobs_email(email):
     print(f"all emails regarding jobs are {email}")
     return {"job_email":email}
@@ -93,6 +73,24 @@ def job_score(email: dict) -> int:
 
     return score
 
+
+def extract_json_array(text: str) -> list:
+    start = text.find("[")
+    if start == -1:
+        raise ValueError("No JSON array start")
+
+    depth = 0
+    for i in range(start, len(text)):
+        if text[i] == "[":
+            depth += 1
+        elif text[i] == "]":
+            depth -= 1
+            if depth == 0:
+                return json.loads(text[start:i + 1])
+
+    raise ValueError("No complete JSON array found")
+
+
 async def classify_job_emails(emails: list[dict]):
     prompt = f"""
 You are classifying emails related to job applications.
@@ -142,12 +140,13 @@ Emails:
 """
 
     response = client.chat.completions.create(
-        
         model="llama-3.1-8b-instant",
         messages=[{"role": "user", "content": prompt}],
         temperature=0,
-        max_tokens=2000,
+        max_tokens=800,
+        stop=["```", "def ", "import ", "Example", "Explanation"],
     )
+
     raw = response.choices[0].message.content
 
     print("====== RAW GROQ RESPONSE START ======")
@@ -155,9 +154,7 @@ Emails:
     print("====== RAW GROQ RESPONSE END ======")
 
     try:
-        # results = json.loads(raw)
-        clean_json = extract_json(raw)
-        results = json.loads(clean_json)
+        results = extract_json_array(raw)
 
         real_job_emails = [
             {
@@ -170,15 +167,16 @@ Emails:
             if r.get("is_real_job_update") is True
         ]
 
-
         return real_job_emails
+
     except Exception as e:
-        print("[AI ERROR] JSON parse failed. Falling back.")
+        print("[AI ERROR] JSON parse failed:", e)
         return [
             {
                 "company_name": e.get("from", "Unknown"),
                 "date": e.get("date", ""),
-                "verdict": "unknown"
+                "verdict": "unknown",
+                "is_real_job_update": False,
             }
             for e in emails
         ]

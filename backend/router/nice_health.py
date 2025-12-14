@@ -57,11 +57,16 @@ async def run_classification_pipeline(user_email: str, limit: int):
             all_results.extend(batch_result)
             await asyncio.sleep(0.4)
 
-        job_results[user_email] = [
-            r for r in all_results
-            if r.get("verdict") != "unknown"
-        ]
+        if not all_results:
+            job_results[user_email] = {
+                "message": "No real job application updates found",
+                "items": []
+            }
+        else:
+            job_results[user_email] = all_results
+
         job_status[user_email] = "done"
+
 
     except Exception as e:
         job_status[user_email] = "error"
