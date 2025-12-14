@@ -43,7 +43,46 @@ def chunk_list(items, chunk_size):
         yield items[i:i + chunk_size]
 
 
+JOB_KEYWORDS = [
+    "job", "application", "applied", "career", "hiring",
+    "interview", "assessment", "coding", "test",
+    "recruit", "recruiter", "selection", "shortlisted",
+    "offer", "position", "role"
+]
 
+JOB_SENDERS = [
+    "careers", "recruit", "jobs", "talent", "hr", "hiring"
+]
+
+ATS_PROVIDERS = [
+    "greenhouse", "lever", "workday"
+]
+
+def job_score(email: dict) -> int:
+    score = 0
+
+    subject = (email.get("subject") or "").lower()
+    snippet = (email.get("snippet") or "").lower()
+    sender = (email.get("from") or "").lower()
+
+    text = subject + " " + snippet
+
+    # keyword matches
+    for kw in JOB_KEYWORDS:
+        if kw in text:
+            score += 2
+
+    # sender hints
+    for s in JOB_SENDERS:
+        if s in sender:
+            score += 2
+
+    # ATS detection (very strong signal)
+    for ats in ATS_PROVIDERS:
+        if ats in sender:
+            score += 3
+
+    return score
 
 async def classify_job_emails(emails: list[dict]):
     prompt = f"""
@@ -60,8 +99,15 @@ async def classify_job_emails(emails: list[dict]):
     interview_scheduled, application_received, unknown
 
     Rules:
-    - If the email is NOT related to a job application, still return:
-    verdict = "unknown"
+    Be conservative.
+    Only treat emails as job-related if they clearly concern:
+    - job application
+    - interview
+    - assessment
+    - rejection
+    - offer
+
+    If unsure, return verdict = "unknown".
     - NEVER return text outside JSON
     - NEVER return markdown
     - NEVER explain anything

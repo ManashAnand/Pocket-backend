@@ -4,7 +4,7 @@ from ..helper.gmail_helper import (
     fetch_latest_emails,
     complete_oauth,
 )
-from ..helper.ai import normalize_emails,classify_job_emails,chunk_list
+from ..helper.ai import normalize_emails,classify_job_emails,chunk_list,job_score
 import asyncio
 from fastapi import BackgroundTasks
 
@@ -27,6 +27,27 @@ async def run_classification_pipeline(user_email: str, limit: int):
 
         service = get_service(user_email)
         emails = fetch_latest_emails(limit, service)
+        
+        high_conf = []
+        medium_conf = []
+        
+        for e in emails:
+            score = job_score(e)
+
+            if score >= 4:
+                high_conf.append(e)
+            elif score >= 2:
+                medium_conf.append(e)
+
+        print(f"[FILTER] high={len(high_conf)}, medium={len(medium_conf)}, total={len(emails)}")
+
+        
+        emails_to_process = high_conf + medium_conf
+
+        if not emails_to_process:
+            job_results[user_email] = []
+            job_status[user_email] = "done"
+            return
         normalized = normalize_emails(emails)
 
         all_results = []
