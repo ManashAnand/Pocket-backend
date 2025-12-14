@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { View, Button, Text, TextInput, ScrollView } from "react-native";
 import * as Linking from "expo-linking";
+import BackendHealth from "../components/backendHealth";
 
 type JobEmail = {
   company_name: string;
@@ -26,6 +27,7 @@ export default function FetchScreen() {
   const [authLink, setAuthLink] = useState<string | null>(null);
   const [jobEmails, setJobEmails] = useState<JobEmail[]>([]);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
+  const [backendOnline, setBackendOnline] = useState(false);
 
   const [status, setStatus] = useState<
     "idle" | "processing" | "done" | "error"
@@ -147,6 +149,11 @@ export default function FetchScreen() {
         Gmail Job Tracker
       </Text>
 
+      <BackendHealth
+        backendUrl="https://pocket-backend-mjhf.onrender.com"
+        onOnline={() => console.log("Backend is ready")}
+      />
+
       <TextInput
         placeholder="Enter your Gmail"
         value={email}
@@ -163,9 +170,15 @@ export default function FetchScreen() {
       />
 
       <Button
-        title={loading ? "Starting..." : "Fetch Emails / Login"}
+        title={
+          !backendOnline
+            ? "Backend starting…"
+            : loading
+            ? "Fetching…"
+            : "Fetch Emails / Login"
+        }
         onPress={startFetch}
-        disabled={loading}
+        disabled={!backendOnline || loading}
       />
 
       {authLink && (

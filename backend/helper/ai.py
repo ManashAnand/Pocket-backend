@@ -93,54 +93,101 @@ def extract_json_array(text: str) -> list:
 
 async def classify_job_emails(emails: list[dict]):
     prompt = f"""
-You are classifying emails related to job applications.
+    
+    You are validating job application status emails.
 
-Your task:
-1. Decide whether the email is a REAL job application update.
-2. If yes, classify the status.
+Your job is NOT to find job-related content.
+Your job is ONLY to identify emails that CONFIRM
+an application action the user has ALREADY taken.
 
-A REAL job application update means:
-- confirmation or acknowledgement that YOU applied
-- confirmation that your application was received
-- referral confirmation
-- application status updates
-- online assessment / coding test
-- interview scheduling
-- rejection
-- offer
+━━━━━━━━━━━━━━━━━━━━━━
+STRICT DEFINITION
+━━━━━━━━━━━━━━━━━━━━━━
 
+An email is a REAL job application update ONLY IF it explicitly confirms
+at least ONE of the following actions already happened:
 
-NOT real job updates:
-- job listings or promotions
-- recruiter outreach before applying
-- LinkedIn notifications
-- banks, govt, product, newsletters
-- hiring ads, portals, marketing
+✔ User applied
+✔ User was referred
+✔ Application was received
+✔ Assessment / coding test assigned
+✔ Interview scheduled
+✔ Rejection sent
+✔ Offer made
+
+━━━━━━━━━━━━━━━━━━━━━━
+MANDATORY CONFIRMATION SIGNALS
+━━━━━━━━━━━━━━━━━━━━━━
+
+At least ONE of these phrases or equivalents must be clearly implied:
+
+- "Thank you for applying"
+- "We have received your application"
+- "Your application has been submitted"
+- "You have been referred"
+- "Interview scheduled"
+- "Assessment / online test"
+- "Shortlisted"
+- "We regret to inform you"
+- "Offer letter"
+
+━━━━━━━━━━━━━━━━━━━━━━
+ABSOLUTELY NOT REAL JOB UPDATES
+━━━━━━━━━━━━━━━━━━━━━━
+
+If the email is ANY of the following, it is NOT a real job update:
+
+✖ Job alerts or recommendations  
+✖ "You may be a good fit"  
+✖ "Apply now"  
+✖ Recruiter outreach before applying  
+✖ LinkedIn / Indeed / Naukri suggestions  
+✖ Reddit, Hirist, newsletters, marketing  
+✖ Hiring ads or promotional job emails  
+
+If there is NO explicit confirmation that the user ALREADY applied
+or progressed in the hiring process → it is NOT real.
+
+━━━━━━━━━━━━━━━━━━━━━━
+OUTPUT FORMAT (JSON ONLY)
+━━━━━━━━━━━━━━━━━━━━━━
 
 Return ONLY a JSON array.
-Each item must be:
+No markdown. No explanation. No extra text.
 
-{{
+Each object MUST be exactly:
+
+{
   "company_name": string,
   "date": string,
   "is_real_job_update": boolean,
   "verdict": one of [
     "application_received",
+    "referred",
     "oa_received",
     "interview_scheduled",
     "rejected",
     "offer_received",
     "unknown"
   ]
-}}
+}
 
-Rules:
-- If not a real job update, set is_real_job_update = false.
-- If unsure, set is_real_job_update = false.
-- Be strict. Do not guess.
+━━━━━━━━━━━━━━━━━━━━━━
+CRITICAL RULES
+━━━━━━━━━━━━━━━━━━━━━━
 
-Emails:
-{json.dumps(emails)}
+- Be extremely strict
+- If unsure → is_real_job_update = false
+- Do NOT guess
+- Do NOT infer intent
+- Do NOT promote job listings to applications
+
+━━━━━━━━━━━━━━━━━━━━━━
+EMAILS TO ANALYZE
+━━━━━━━━━━━━━━━━━━━━━━
+
+{{EMAILS_JSON}}
+
 """
 
     response = client.chat.completions.create(
