@@ -93,101 +93,63 @@ def extract_json_array(text: str) -> list:
 
 async def classify_job_emails(emails: list[dict]):
     prompt = f"""
-    
-    You are validating job application status emails.
+You are validating job application status emails.
 
 Your job is NOT to find job-related content.
 Your job is ONLY to identify emails that CONFIRM
 an application action the user has ALREADY taken.
 
-━━━━━━━━━━━━━━━━━━━━━━
 STRICT DEFINITION
-━━━━━━━━━━━━━━━━━━━━━━
 
 An email is a REAL job application update ONLY IF it explicitly confirms
 at least ONE of the following actions already happened:
 
-✔ User applied
-✔ User was referred
-✔ Application was received
-✔ Assessment / coding test assigned
-✔ Interview scheduled
-✔ Rejection sent
-✔ Offer made
+- User applied
+- User was referred
+- Application was received
+- Assessment / coding test assigned
+- Interview scheduled
+- Rejection sent
+- Offer made
 
-━━━━━━━━━━━━━━━━━━━━━━
 MANDATORY CONFIRMATION SIGNALS
-━━━━━━━━━━━━━━━━━━━━━━
 
-At least ONE of these phrases or equivalents must be clearly implied:
+- Thank you for applying
+- We have received your application
+- Your application has been submitted
+- You have been referred
+- Interview scheduled
+- Assessment or online test
+- Shortlisted
+- We regret to inform you
+- Offer letter
 
-- "Thank you for applying"
-- "We have received your application"
-- "Your application has been submitted"
-- "You have been referred"
-- "Interview scheduled"
-- "Assessment / online test"
-- "Shortlisted"
-- "We regret to inform you"
-- "Offer letter"
-
-━━━━━━━━━━━━━━━━━━━━━━
 ABSOLUTELY NOT REAL JOB UPDATES
-━━━━━━━━━━━━━━━━━━━━━━
 
-If the email is ANY of the following, it is NOT a real job update:
+- Job alerts or recommendations
+- You may be a good fit
+- Apply now
+- Recruiter outreach before applying
+- LinkedIn / Indeed / Naukri suggestions
+- Reddit, Hirist, newsletters, marketing
+- Hiring ads or promotional job emails
 
-✖ Job alerts or recommendations  
-✖ "You may be a good fit"  
-✖ "Apply now"  
-✖ Recruiter outreach before applying  
-✖ LinkedIn / Indeed / Naukri suggestions  
-✖ Reddit, Hirist, newsletters, marketing  
-✖ Hiring ads or promotional job emails  
+OUTPUT FORMAT
 
-If there is NO explicit confirmation that the user ALREADY applied
-or progressed in the hiring process → it is NOT real.
-
-━━━━━━━━━━━━━━━━━━━━━━
-OUTPUT FORMAT (JSON ONLY)
-━━━━━━━━━━━━━━━━━━━━━━
-
-Return ONLY a JSON array.
-No markdown. No explanation. No extra text.
+Return ONLY a valid JSON array.
 
 Each object MUST be exactly:
 
-{
-  "company_name": string,
-  "date": string,
-  "is_real_job_update": boolean,
-  "verdict": one of [
-    "application_received",
-    "referred",
-    "oa_received",
-    "interview_scheduled",
-    "rejected",
-    "offer_received",
-    "unknown"
-  ]
-}
+{{
+  "company_name": "string",
+  "date": "string",
+  "is_real_job_update": true or false,
+  "verdict": "application_received | referred | oa_received | interview_scheduled | rejected | offer_received | unknown"
+}}
 
-━━━━━━━━━━━━━━━━━━━━━━
-CRITICAL RULES
-━━━━━━━━━━━━━━━━━━━━━━
-
-- Be extremely strict
-- If unsure → is_real_job_update = false
-- Do NOT guess
-- Do NOT infer intent
-- Do NOT promote job listings to applications
-
-━━━━━━━━━━━━━━━━━━━━━━
 EMAILS TO ANALYZE
-━━━━━━━━━━━━━━━━━━━━━━
 
-{{EMAILS_JSON}}
-
+{json.dumps(emails, ensure_ascii=False)}
 """
 
     response = client.chat.completions.create(
@@ -195,11 +157,7 @@ EMAILS TO ANALYZE
         messages=[
             {
                 "role": "system",
-                "content": (
-                    "You are a JSON API. "
-                    "You must output ONLY valid JSON. "
-                    "No explanations. No code. No markdown."
-                )
+                "content": "You are a JSON API. Output ONLY valid JSON."
             },
             {
                 "role": "user",
@@ -211,35 +169,26 @@ EMAILS TO ANALYZE
     )
 
     raw = response.choices[0].message.content
-
-    print("====== RAW GROQ RESPONSE START ======")
+    print("====== RAW GROQ RESPONSE ======")
     print(raw)
-    print("====== RAW GROQ RESPONSE END ======")
 
     try:
-        results = extract_json_array(raw)
+        results = json.loads(raw)
 
-        real_job_emails = [
+        if not isinstance(results, list):
+            raise ValueError("Expected JSON array")
+
+        return [
             {
                 "company_name": r.get("company_name", "Unknown"),
                 "date": r.get("date", ""),
                 "verdict": r.get("verdict", "unknown"),
-                "is_real_job_update": True,
+                "is_real_job_update": r.get("is_real_job_update", False),
             }
             for r in results
             if r.get("is_real_job_update") is True
         ]
 
-        return real_job_emails
-
     except Exception as e:
-        print("[AI ERROR] JSON parse failed:", e)
-        return [
-            {
-                "company_name": e.get("from", "Unknown"),
-                "date": e.get("date", ""),
-                "verdict": "unknown",
-                "is_real_job_update": False,
-            }
-            for e in emails
-        ]
+        print("[AI ERROR]", e)
+        return []

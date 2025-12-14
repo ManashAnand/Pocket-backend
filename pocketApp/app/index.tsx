@@ -1,5 +1,12 @@
 import React, { useState, useEffect, useRef } from "react";
-import { View, Button, Text, TextInput, ScrollView } from "react-native";
+import {
+  View,
+  Button,
+  Text,
+  TextInput,
+  ScrollView,
+  TouchableOpacity,
+} from "react-native";
 import * as Linking from "expo-linking";
 import BackendHealth from "../components/backendHealth";
 
@@ -9,46 +16,60 @@ type JobEmail = {
   verdict: string;
 };
 
-const verdictLabel: Record<string, string> = {
-  oa_received: "OA Received",
-  rejected: "Rejected",
-  ghosted: "Ghosted",
-  referred_no_response: "Referred (No Response)",
-  interview_scheduled: "Interview Scheduled",
-  application_received: "Application Submitted",
-  offer_received: "Offer Received",
-  unknown: "Unknown",
+const BACKEND = "https://pocket-backend-mjhf.onrender.com";
+
+/* ================= VERDICT CONFIG ================= */
+
+const verdictMeta: Record<
+  string,
+  { label: string; color: string; priority: number }
+> = {
+  rejected: { label: "Rejected", color: "#e53935", priority: 1 },
+  application_received: {
+    label: "Applied",
+    color: "#fbc02d",
+    priority: 2,
+  },
+  referred: { label: "Referred", color: "#43a047", priority: 3 },
+  oa_received: { label: "OA Received", color: "#43a047", priority: 3 },
+  interview_scheduled: {
+    label: "Interview",
+    color: "#43a047",
+    priority: 3,
+  },
+  offer_received: { label: "Offer", color: "#2e7d32", priority: 4 },
+  unknown: { label: "Unknown", color: "#9e9e9e", priority: 0 },
 };
 
-const BACKEND = "https://pocket-backend-mjhf.onrender.com";
+const FILTERS = ["all", "positive", "applied", "rejected"] as const;
+type FilterType = (typeof FILTERS)[number];
+
+/* ================= COMPONENT ================= */
 
 export default function FetchScreen() {
   const [email, setEmail] = useState("");
   const [authLink, setAuthLink] = useState<string | null>(null);
   const [jobEmails, setJobEmails] = useState<JobEmail[]>([]);
-  const [infoMessage, setInfoMessage] = useState<string | null>(null);
-  const [backendOnline, setBackendOnline] = useState(false);
-
   const [status, setStatus] = useState<
     "idle" | "processing" | "done" | "error"
   >("idle");
 
+  const [filter, setFilter] = useState<FilterType>("all");
   const [loading, setLoading] = useState(false);
 
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
-  /* ================= START JOB ================= */
+  /* ================= START ================= */
 
   const startFetch = async () => {
     if (!email.trim()) {
-      alert("Please enter your email first.");
+      alert("Enter your email");
       return;
     }
 
     setLoading(true);
-    setAuthLink(null);
     setJobEmails([]);
-    setInfoMessage(null);
+    if (status === "processing") return;
 
     try {
       const res = await fetch(
@@ -58,7 +79,6 @@ export default function FetchScreen() {
       );
 
       const data = await res.json();
-      console.log("START RESPONSE:", data);
 
       if (data.auth_url) {
         setAuthLink(data.auth_url);
@@ -69,11 +89,8 @@ export default function FetchScreen() {
       if (data.status === "started" || data.status === "processing") {
         setStatus("processing");
         startPolling();
-        return;
       }
-    } catch (err) {
-      console.log("START ERROR:", err);
-      alert("Failed to start processing");
+    } catch {
       setStatus("error");
     } finally {
       setLoading(false);
@@ -83,42 +100,25 @@ export default function FetchScreen() {
   /* ================= POLLING ================= */
 
   const pollStatus = async () => {
-    try {
-      const res = await fetch(
-        `${BACKEND}/emails/status?user_email=${encodeURIComponent(
-          email.trim()
-        )}`
-      );
+    const res = await fetch(
+      `${BACKEND}/emails/status?user_email=${encodeURIComponent(email.trim())}`
+    );
+    const data = await res.json();
 
-      const data = await res.json();
-      console.log("POLL RESPONSE:", data);
-
-      if (data.status === "done") {
-        stopPolling();
-        setStatus("done");
-
-        // EMPTY BUT VALID RESULT
-        if (data.job_emails?.message) {
-          setInfoMessage(data.job_emails.message);
-          setJobEmails([]);
-        } else {
-          setInfoMessage(null);
-          setJobEmails(data.job_emails || []);
-        }
-      } else if (data.status === "error") {
-        stopPolling();
-        setStatus("error");
-      } else {
-        setStatus("processing");
-      }
-    } catch (err) {
-      console.log("POLL ERROR:", err);
+    if (data.status === "done") {
+      stopPolling();
+      setJobEmails(data.job_emails || []);
+      setStatus("done");
+    } else if (data.status === "error") {
+      stopPolling();
+      setStatus("error");
     }
   };
 
   const startPolling = () => {
-    if (pollingRef.current) return;
-    pollingRef.current = setInterval(pollStatus, 3000);
+    if (!pollingRef.current) {
+      pollingRef.current = setInterval(pollStatus, 3000);
+    }
   };
 
   const stopPolling = () => {
@@ -128,106 +128,134 @@ export default function FetchScreen() {
     }
   };
 
-  useEffect(() => {
-    return () => stopPolling();
-  }, []);
+  useEffect(() => () => stopPolling(), []);
+
+  /* ================= FILTER + SORT ================= */
+
+  const filtered = jobEmails
+    .filter((e) => {
+      if (filter === "all") return true;
+      if (filter === "rejected") return e.verdict === "rejected";
+      if (filter === "applied") return e.verdict === "application_received";
+      if (filter === "positive")
+        return [
+          "oa_received",
+          "interview_scheduled",
+          "offer_received",
+        ].includes(e.verdict);
+      return true;
+    })
+    .sort((a, b) => {
+      const pa = verdictMeta[a.verdict]?.priority ?? 0;
+      const pb = verdictMeta[b.verdict]?.priority ?? 0;
+      return pb - pa;
+    });
 
   /* ================= UI ================= */
 
-  const openAuthLink = () => {
-    if (authLink) {
-      Linking.openURL(authLink);
-    }
-  };
-
   return (
-    <ScrollView
-      style={{ marginTop: 60, padding: 20 }}
-      contentContainerStyle={{ gap: 20 }}
-    >
+    <ScrollView style={{ marginTop: 60, padding: 20 }}>
       <Text style={{ fontSize: 22, fontWeight: "bold" }}>
         Gmail Job Tracker
       </Text>
 
-      <BackendHealth
-        backendUrl="https://pocket-backend-mjhf.onrender.com"
-        onOnline={() => console.log("Backend is ready")}
-      />
+      <BackendHealth backendUrl={BACKEND} />
 
       <TextInput
-        placeholder="Enter your Gmail"
+        placeholder="Enter Gmail"
         value={email}
         onChangeText={setEmail}
         autoCapitalize="none"
-        keyboardType="email-address"
         style={{
+          marginTop: 12,
           padding: 12,
           borderWidth: 1,
           borderRadius: 8,
-          borderColor: "#999",
-          fontSize: 16,
         }}
       />
 
       <Button
-        title={
-          !backendOnline
-            ? "Backend starting…"
-            : loading
-            ? "Fetching…"
-            : "Fetch Emails / Login"
-        }
+        title={loading ? "Fetching…" : "Fetch Emails"}
         onPress={startFetch}
-        disabled={!backendOnline || loading}
+        disabled={loading}
       />
 
       {authLink && (
-        <Button title="Open Google Authorization" onPress={openAuthLink} />
+        <Button
+          title="Authorize Gmail"
+          onPress={() => Linking.openURL(authLink)}
+        />
       )}
 
       {status === "processing" && (
-        <Text style={{ fontSize: 16 }}>Processing emails… please wait</Text>
+        <Text style={{ marginTop: 12 }}>Processing…</Text>
       )}
 
       {status === "error" && (
-        <Text style={{ color: "red" }}>Something went wrong. Try again.</Text>
+        <Text style={{ color: "red" }}>Something went wrong</Text>
       )}
 
-      {/* EMPTY BUT VALID RESULT */}
-      {status === "done" && infoMessage && (
-        <Text style={{ marginTop: 12, color: "#666" }}>{infoMessage}</Text>
-      )}
-
-      {/* RESULTS */}
-      {status === "done" && jobEmails.length > 0 && (
-        <View style={{ marginTop: 10 }}>
-          <Text style={{ fontSize: 20, fontWeight: "bold" }}>
-            Job Application Status
-          </Text>
-
-          {jobEmails.map((item, index) => (
-            <View
-              key={index}
+      {/* FILTER BAR */}
+      {status === "done" && (
+        <View style={{ flexDirection: "row", marginTop: 16 }}>
+          {FILTERS.map((f) => (
+            <TouchableOpacity
+              key={f}
+              onPress={() => setFilter(f)}
               style={{
-                marginTop: 10,
-                padding: 12,
-                borderWidth: 1,
-                borderRadius: 8,
-                borderColor: "#ccc",
+                marginRight: 8,
+                paddingVertical: 6,
+                paddingHorizontal: 12,
+                borderRadius: 20,
+                backgroundColor: filter === f ? "#333" : "#ddd",
               }}
             >
-              <Text style={{ fontWeight: "bold" }}>Company</Text>
-              <Text>{item.company_name || "Unknown"}</Text>
-
-              <Text style={{ fontWeight: "bold", marginTop: 6 }}>Date</Text>
-              <Text>{item.date || "Not found"}</Text>
-
-              <Text style={{ fontWeight: "bold", marginTop: 6 }}>Verdict</Text>
-              <Text>{verdictLabel[item.verdict] || item.verdict}</Text>
-            </View>
+              <Text style={{ color: filter === f ? "#fff" : "#000" }}>
+                {f.toUpperCase()}
+              </Text>
+            </TouchableOpacity>
           ))}
         </View>
       )}
+
+      {/* RESULTS */}
+      {filtered.map((item, i) => {
+        const meta = verdictMeta[item.verdict] || verdictMeta.unknown;
+
+        return (
+          <View
+            key={i}
+            style={{
+              marginTop: 12,
+              padding: 12,
+              borderWidth: 1,
+              borderRadius: 8,
+            }}
+          >
+            <Text style={{ fontWeight: "bold" }}>
+              {item.company_name || "Unknown"}
+            </Text>
+
+            <Text style={{ color: "#555", marginTop: 4 }}>{item.date}</Text>
+
+            {/* STATUS BADGE */}
+            <View
+              style={{
+                marginTop: 8,
+                alignSelf: "flex-start",
+                paddingVertical: 4,
+                paddingHorizontal: 10,
+                borderRadius: 14,
+                backgroundColor: meta.color,
+              }}
+            >
+              <Text style={{ color: "#fff", fontWeight: "bold" }}>
+                {meta.label}
+              </Text>
+            </View>
+          </View>
+        );
+      })}
     </ScrollView>
   );
 }
