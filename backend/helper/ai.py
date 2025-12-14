@@ -6,15 +6,6 @@ import json
 
 client = Groq(api_key=os.environ["GROQ_API_KEY"])
 
-class JobVerdict(str, Enum):
-    OA_RECEIVED = "oa_received"
-    REJECTED = "rejected"
-    GHOSTED = "ghosted"
-    REFERRED_NO_RESPONSE = "referred_no_response"
-    INTERVIEW_SCHEDULED = "interview_scheduled"
-    APPLICATION_RECEIVED = "application_received"
-    UNKNOWN = "unknown"
-
 
 async def get_all_jobs_email(email):
     print(f"all emails regarding jobs are {email}")
@@ -85,51 +76,51 @@ def job_score(email: dict) -> int:
 
 async def classify_job_emails(emails: list[dict]):
     prompt = f"""
-    You are classifying emails related to job applications.
+You are classifying emails related to job applications.
 
-    Your task:
-    1. Decide whether the email is a REAL job application update.
-    2. If yes, classify the status.
+Your task:
+1. Decide whether the email is a REAL job application update.
+2. If yes, classify the status.
 
-    A REAL job application update means:
-    - confirmation that YOU applied
-    - online assessment / coding test
-    - interview scheduling
-    - rejection
-    - offer
+A REAL job application update means:
+- confirmation that YOU applied
+- online assessment / coding test
+- interview scheduling
+- rejection
+- offer
 
-    NOT real job updates:
-    - job listings or promotions
-    - recruiter outreach before applying
-    - LinkedIn notifications
-    - banks, govt, product, newsletters
-    - hiring ads, portals, marketing
+NOT real job updates:
+- job listings or promotions
+- recruiter outreach before applying
+- LinkedIn notifications
+- banks, govt, product, newsletters
+- hiring ads, portals, marketing
 
-    Return ONLY a JSON array.
-    Each item must be:
+Return ONLY a JSON array.
+Each item must be:
 
-    {
-    "company_name": string,
-    "date": string,
-    "is_real_job_update": boolean,
-    "verdict": one of [
-        "application_received",
-        "oa_received",
-        "interview_scheduled",
-        "rejected",
-        "offer_received",
-        "unknown"
-    ]
-    }
+{{
+  "company_name": string,
+  "date": string,
+  "is_real_job_update": boolean,
+  "verdict": one of [
+    "application_received",
+    "oa_received",
+    "interview_scheduled",
+    "rejected",
+    "offer_received",
+    "unknown"
+  ]
+}}
 
-    Rules:
-    - If not a real job update, set is_real_job_update = false.
-    - If unsure, set is_real_job_update = false.
-    - Be strict. Do not guess.
+Rules:
+- If not a real job update, set is_real_job_update = false.
+- If unsure, set is_real_job_update = false.
+- Be strict. Do not guess.
 
-    Emails:
-    {json.dumps(emails)}
-    """
+Emails:
+{json.dumps(emails)}
+"""
 
     response = client.chat.completions.create(
         
@@ -147,9 +138,16 @@ async def classify_job_emails(emails: list[dict]):
     try:
         results = json.loads(raw)
         real_job_emails = [
-            r for r in results
+            {
+                "company_name": r.get("company_name", "Unknown"),
+                "date": r.get("date", ""),
+                "verdict": r.get("verdict", "unknown"),
+                "is_real_job_update": True,
+            }
+            for r in results
             if r.get("is_real_job_update") is True
         ]
+
 
         return real_job_emails
     except Exception as e:
@@ -162,5 +160,3 @@ async def classify_job_emails(emails: list[dict]):
             }
             for e in emails
         ]
-
-
