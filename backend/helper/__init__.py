@@ -1,3 +1,4 @@
 from .gmail_helper import fetch_latest_emails,get_service
+from .ai import get_all_jobs_email,normalize_emails,classify_job_emails
 
-__all__ = [fetch_latest_emails,get_service]
+__all__ = [fetch_latest_emails,get_service,get_all_jobs_email,normalize_emails,classify_job_emails]

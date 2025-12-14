@@ -2,17 +2,39 @@ import React, { useState } from "react";
 import { View, Button, Text, TextInput, ScrollView } from "react-native";
 import * as Linking from "expo-linking";
 
+type JobEmail = {
+  company_name: string;
+  date: string;
+  verdict: string;
+};
+
+const verdictLabel: Record<string, string> = {
+  oa_received: "OA Received",
+  rejected: "Rejected",
+  ghosted: "Ghosted",
+  referred_no_response: "Referred (No Response)",
+  interview_scheduled: "Interview Scheduled",
+  application_received: "Application Submitted",
+  unknown: "Unknown",
+};
+
 export default function FetchScreen() {
   const [email, setEmail] = useState("");
   const [authLink, setAuthLink] = useState<string | null>(null);
   const [rawResponse, setRawResponse] = useState<string | null>(null);
-  const [emails, setEmails] = useState<any[]>([]);
+  const [jobEmails, setJobEmails] = useState<JobEmail[]>([]);
+  const [loading, setLoading] = useState(false);
 
   const fetchEmails = async () => {
     if (!email.trim()) {
       alert("Please enter your email first.");
       return;
     }
+
+    setLoading(true);
+    setRawResponse(null);
+    setJobEmails([]);
+    setAuthLink(null);
 
     try {
       const res = await fetch(
@@ -27,25 +49,27 @@ export default function FetchScreen() {
       if (data.auth_url) {
         setAuthLink(data.auth_url);
         setRawResponse(JSON.stringify(data, null, 2));
-        setEmails([]);
         return;
       }
 
-      if (data.emails) {
-        setEmails(data.emails);
-        setRawResponse(null);
-        setAuthLink(null);
+      if (data.job_emails) {
+        setJobEmails(data.job_emails);
         return;
       }
 
       setRawResponse(JSON.stringify(data, null, 2));
     } catch (err) {
       console.log("FETCH ERROR:", err);
+      alert("Something went wrong. Check console.");
+    } finally {
+      setLoading(false);
     }
   };
 
   const openAuthLink = () => {
-    if (authLink) Linking.openURL(authLink);
+    if (authLink) {
+      Linking.openURL(authLink);
+    }
   };
 
   return (
@@ -54,12 +78,12 @@ export default function FetchScreen() {
       contentContainerStyle={{ gap: 20 }}
     >
       <Text style={{ fontSize: 22, fontWeight: "bold" }}>
-        Gmail Fetch (Multi-user)
+        Gmail Job Tracker
       </Text>
 
       {/* Email Input */}
       <TextInput
-        placeholder="Enter your email"
+        placeholder="Enter your Gmail"
         value={email}
         onChangeText={setEmail}
         autoCapitalize="none"
@@ -73,24 +97,28 @@ export default function FetchScreen() {
         }}
       />
 
-      {/* Button */}
-      <Button title="Fetch Emails / Login" onPress={fetchEmails} />
+      {/* Fetch Button */}
+      <Button
+        title={loading ? "Fetching..." : "Fetch Emails / Login"}
+        onPress={fetchEmails}
+        disabled={loading}
+      />
 
-      {/* OAuth Link Button */}
+      {/* OAuth Button */}
       {authLink && (
-        <View style={{ marginTop: 10 }}>
+        <View>
           <Button title="Open Google Authorization" onPress={openAuthLink} />
         </View>
       )}
 
-      {/* Show Emails */}
-      {emails.length > 0 && (
-        <View style={{ marginTop: 20 }}>
+      {/* Job Results */}
+      {jobEmails.length > 0 && (
+        <View style={{ marginTop: 10 }}>
           <Text style={{ fontSize: 20, fontWeight: "bold" }}>
-            Latest Emails:
+            Job Application Status
           </Text>
 
-          {emails.map((item, index) => (
+          {jobEmails.map((item, index) => (
             <View
               key={index}
               style={{
@@ -101,23 +129,20 @@ export default function FetchScreen() {
                 borderColor: "#ccc",
               }}
             >
-              <Text style={{ fontWeight: "bold" }}>From:</Text>
-              <Text>{item.from}</Text>
+              <Text style={{ fontWeight: "bold" }}>Company</Text>
+              <Text>{item.company_name || "Unknown"}</Text>
 
-              <Text style={{ fontWeight: "bold", marginTop: 6 }}>Subject:</Text>
-              <Text>{item.subject}</Text>
+              <Text style={{ fontWeight: "bold", marginTop: 6 }}>Date</Text>
+              <Text>{item.date || "Not found"}</Text>
 
-              <Text style={{ fontWeight: "bold", marginTop: 6 }}>Date:</Text>
-              <Text>{item.date}</Text>
-
-              <Text style={{ fontWeight: "bold", marginTop: 6 }}>Snippet:</Text>
-              <Text>{item.snippet}</Text>
+              <Text style={{ fontWeight: "bold", marginTop: 6 }}>Verdict</Text>
+              <Text>{verdictLabel[item.verdict] || item.verdict}</Text>
             </View>
           ))}
         </View>
       )}
 
-      {/* Raw Response (Debug) */}
+      {/* Debug Output */}
       {rawResponse && (
         <Text style={{ marginTop: 20, fontFamily: "monospace" }}>
           Raw Response:

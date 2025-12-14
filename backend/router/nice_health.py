@@ -4,6 +4,7 @@ from ..helper.gmail_helper import (
     fetch_latest_emails,
     complete_oauth,
 )
+from ..helper.ai import normalize_emails,classify_job_emails
 
 router = APIRouter()
 
@@ -14,7 +15,7 @@ def nice_health():
 
 
 @router.get("/emails/latest")
-def get_latest_emails(user_email: str, limit: int = 5):
+async def get_latest_emails(user_email: str, limit: int = 5):
     """Check if token exists → fetch emails OR return OAuth URL."""
     service = get_service(user_email)
 
@@ -22,8 +23,16 @@ def get_latest_emails(user_email: str, limit: int = 5):
         return {"auth_url": service["auth_url"]}
 
     emails = fetch_latest_emails(limit, service)
-    return {"emails": emails}
+    print(f"Emails from nice_health {emails}")
+    normalized = normalize_emails(emails)
+    print(f"normalized Emails from nice_health {normalized}")
 
+    job_results = await classify_job_emails(normalized)
+    print(f"job_results  from nice_health {job_results}")
+    return {
+        "count": len(job_results),
+        "job_emails": job_results
+    }
 
 @router.get("/oauth/callback")
 def oauth_callback(code: str, state: str):
