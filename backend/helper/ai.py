@@ -6,6 +6,25 @@ import json
 
 client = Groq(api_key=os.environ["GROQ_API_KEY"])
 
+def extract_json(text: str) -> str:
+    """
+    Extract JSON array from LLM output.
+    Handles ```json fences and extra commentary.
+    """
+    text = text.strip()
+
+    # Remove markdown fences
+    if text.startswith("```"):
+        text = text.split("```")[1]
+
+    # Find first '[' and last ']'
+    start = text.find("[")
+    end = text.rfind("]")
+
+    if start == -1 or end == -1:
+        raise ValueError("No JSON array found")
+
+    return text[start:end + 1]
 
 async def get_all_jobs_email(email):
     print(f"all emails regarding jobs are {email}")
@@ -136,7 +155,10 @@ Emails:
     print("====== RAW GROQ RESPONSE END ======")
 
     try:
-        results = json.loads(raw)
+        # results = json.loads(raw)
+        clean_json = extract_json(raw)
+        results = json.loads(clean_json)
+
         real_job_emails = [
             {
                 "company_name": r.get("company_name", "Unknown"),
