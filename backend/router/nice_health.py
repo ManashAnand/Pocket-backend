@@ -48,7 +48,7 @@ async def run_classification_pipeline(user_email: str, limit: int):
             job_results[user_email] = []
             job_status[user_email] = "done"
             return
-        normalized = normalize_emails(emails)
+        normalized = normalize_emails(emails_to_process)
 
         all_results = []
 
@@ -57,7 +57,10 @@ async def run_classification_pipeline(user_email: str, limit: int):
             all_results.extend(batch_result)
             await asyncio.sleep(0.4)
 
-        job_results[user_email] = all_results
+        job_results[user_email] = [
+            r for r in all_results
+            if r.get("verdict") != "unknown"
+        ]
         job_status[user_email] = "done"
 
     except Exception as e:

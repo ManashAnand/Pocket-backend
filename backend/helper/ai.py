@@ -6,7 +6,6 @@ import json
 
 client = Groq(api_key=os.environ["GROQ_API_KEY"])
 
-
 class JobVerdict(str, Enum):
     OA_RECEIVED = "oa_received"
     REJECTED = "rejected"
@@ -86,31 +85,47 @@ def job_score(email: dict) -> int:
 
 async def classify_job_emails(emails: list[dict]):
     prompt = f"""
-    You are an API. You MUST return valid JSON only.
+    You are classifying emails related to job applications.
 
-    Return a JSON array.
-    Each element must have exactly these keys:
-    - company_name (string)
-    - date (string)
-    - verdict (string)
+    Your task:
+    1. Decide whether the email is a REAL job application update.
+    2. If yes, classify the status.
 
-    Allowed verdict values:
-    oa_received, rejected, ghosted, referred_no_response,
-    interview_scheduled, application_received, unknown
-
-    Rules:
-    Be conservative.
-    Only treat emails as job-related if they clearly concern:
-    - job application
-    - interview
-    - assessment
+    A REAL job application update means:
+    - confirmation that YOU applied
+    - online assessment / coding test
+    - interview scheduling
     - rejection
     - offer
 
-    If unsure, return verdict = "unknown".
-    - NEVER return text outside JSON
-    - NEVER return markdown
-    - NEVER explain anything
+    NOT real job updates:
+    - job listings or promotions
+    - recruiter outreach before applying
+    - LinkedIn notifications
+    - banks, govt, product, newsletters
+    - hiring ads, portals, marketing
+
+    Return ONLY a JSON array.
+    Each item must be:
+
+    {
+    "company_name": string,
+    "date": string,
+    "is_real_job_update": boolean,
+    "verdict": one of [
+        "application_received",
+        "oa_received",
+        "interview_scheduled",
+        "rejected",
+        "offer_received",
+        "unknown"
+    ]
+    }
+
+    Rules:
+    - If not a real job update, set is_real_job_update = false.
+    - If unsure, set is_real_job_update = false.
+    - Be strict. Do not guess.
 
     Emails:
     {json.dumps(emails)}
@@ -130,7 +145,13 @@ async def classify_job_emails(emails: list[dict]):
     print("====== RAW GROQ RESPONSE END ======")
 
     try:
-        return json.loads(raw)
+        results = json.loads(raw)
+        real_job_emails = [
+            r for r in results
+            if r.get("is_real_job_update") is True
+        ]
+
+        return real_job_emails
     except Exception as e:
         print("[AI ERROR] JSON parse failed. Falling back.")
         return [
