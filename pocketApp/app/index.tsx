@@ -15,6 +15,7 @@ const verdictLabel: Record<string, string> = {
   referred_no_response: "Referred (No Response)",
   interview_scheduled: "Interview Scheduled",
   application_received: "Application Submitted",
+  offer_received: "Offer Received",
   unknown: "Unknown",
 };
 
@@ -24,14 +25,17 @@ export default function FetchScreen() {
   const [email, setEmail] = useState("");
   const [authLink, setAuthLink] = useState<string | null>(null);
   const [jobEmails, setJobEmails] = useState<JobEmail[]>([]);
+  const [infoMessage, setInfoMessage] = useState<string | null>(null);
+
   const [status, setStatus] = useState<
-    "idle" | "started" | "processing" | "done" | "error"
+    "idle" | "processing" | "done" | "error"
   >("idle");
+
   const [loading, setLoading] = useState(false);
 
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
-  /* ---------------- START JOB ---------------- */
+  /* ================= START JOB ================= */
 
   const startFetch = async () => {
     if (!email.trim()) {
@@ -42,7 +46,7 @@ export default function FetchScreen() {
     setLoading(true);
     setAuthLink(null);
     setJobEmails([]);
-    setStatus("idle");
+    setInfoMessage(null);
 
     try {
       const res = await fetch(
@@ -74,7 +78,7 @@ export default function FetchScreen() {
     }
   };
 
-  /* ---------------- POLLING ---------------- */
+  /* ================= POLLING ================= */
 
   const pollStatus = async () => {
     try {
@@ -83,16 +87,25 @@ export default function FetchScreen() {
           email.trim()
         )}`
       );
+
       const data = await res.json();
       console.log("POLL RESPONSE:", data);
 
       if (data.status === "done") {
-        setJobEmails(data.job_emails || []);
+        stopPolling();
         setStatus("done");
-        stopPolling();
+
+        // EMPTY BUT VALID RESULT
+        if (data.job_emails?.message) {
+          setInfoMessage(data.job_emails.message);
+          setJobEmails([]);
+        } else {
+          setInfoMessage(null);
+          setJobEmails(data.job_emails || []);
+        }
       } else if (data.status === "error") {
-        setStatus("error");
         stopPolling();
+        setStatus("error");
       } else {
         setStatus("processing");
       }
@@ -103,8 +116,7 @@ export default function FetchScreen() {
 
   const startPolling = () => {
     if (pollingRef.current) return;
-
-    pollingRef.current = setInterval(pollStatus, 3000); // every 3s
+    pollingRef.current = setInterval(pollStatus, 3000);
   };
 
   const stopPolling = () => {
@@ -115,10 +127,10 @@ export default function FetchScreen() {
   };
 
   useEffect(() => {
-    return () => stopPolling(); // cleanup on unmount
+    return () => stopPolling();
   }, []);
 
-  /* ---------------- UI ---------------- */
+  /* ================= UI ================= */
 
   const openAuthLink = () => {
     if (authLink) {
@@ -161,13 +173,19 @@ export default function FetchScreen() {
       )}
 
       {status === "processing" && (
-        <Text style={{ fontSize: 16 }}>Processing emails… please wait ⏳</Text>
+        <Text style={{ fontSize: 16 }}>Processing emails… please wait</Text>
       )}
 
       {status === "error" && (
         <Text style={{ color: "red" }}>Something went wrong. Try again.</Text>
       )}
 
+      {/* EMPTY BUT VALID RESULT */}
+      {status === "done" && infoMessage && (
+        <Text style={{ marginTop: 12, color: "#666" }}>{infoMessage}</Text>
+      )}
+
+      {/* RESULTS */}
       {status === "done" && jobEmails.length > 0 && (
         <View style={{ marginTop: 10 }}>
           <Text style={{ fontSize: 20, fontWeight: "bold" }}>
