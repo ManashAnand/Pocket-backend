@@ -37,35 +37,28 @@ def normalize_emails(emails):
 
 async def classify_job_emails(emails: list[dict]):
     prompt = f"""
-You are an email classifier for job applications.
+    You are an API. You MUST return valid JSON only.
 
-For each email, extract:
-1. company_name
-2. date (from email body, NOT today's date)
-3. verdict
+    Return a JSON array.
+    Each element must have exactly these keys:
+    - company_name (string)
+    - date (string)
+    - verdict (string)
 
-Allowed verdict values:
-- oa_received
-- rejected
-- ghosted
-- referred_no_response
-- interview_scheduled
-- application_received
-- unknown
+    Allowed verdict values:
+    oa_received, rejected, ghosted, referred_no_response,
+    interview_scheduled, application_received, unknown
 
-Rules:
-- OA link or assessment → oa_received
-- Rejection wording → rejected
-- Referral mention without reply → referred_no_response
-- Interview mention → interview_scheduled
-- Confirmation only → application_received
-- Unclear → unknown
+    Rules:
+    - If the email is NOT related to a job application, still return:
+    verdict = "unknown"
+    - NEVER return text outside JSON
+    - NEVER return markdown
+    - NEVER explain anything
 
-Return ONLY valid JSON array.
-
-Emails:
-{json.dumps(emails)}
-"""
+    Emails:
+    {json.dumps(emails)}
+    """
 
     response = client.chat.completions.create(
         
@@ -74,6 +67,27 @@ Emails:
         temperature=0,
         max_tokens=2000,
     )
-
     raw = response.choices[0].message.content
-    return json.loads(raw)
+
+    print("====== RAW GROQ RESPONSE START ======")
+    print(raw)
+    print("====== RAW GROQ RESPONSE END ======")
+
+    try:
+        return json.loads(raw)
+    except Exception as e:
+        print("[AI ERROR] JSON parsing failed")
+        print("[AI ERROR] Raw response was:")
+        print(raw)
+
+        # Fallback: mark all emails as unknown
+        fallback = []
+        for e in emails:
+            fallback.append({
+                "company_name": e.get("from", "Unknown"),
+                "date": e.get("date", ""),
+                "verdict": "unknown"
+            })
+
+        return fallback
+

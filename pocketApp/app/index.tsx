@@ -40,7 +40,7 @@ export default function FetchScreen() {
       const res = await fetch(
         `https://pocket-backend-mjhf.onrender.com/emails/latest?user_email=${encodeURIComponent(
           email.trim()
-        )}&limit=5`
+        )}&limit=50`
       );
 
       const data = await res.json();
