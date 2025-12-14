@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { View, Button, Text, TextInput, ScrollView } from "react-native";
 import * as Linking from "expo-linking";
 
@@ -18,53 +18,107 @@ const verdictLabel: Record<string, string> = {
   unknown: "Unknown",
 };
 
+const BACKEND = "https://pocket-backend-mjhf.onrender.com";
+
 export default function FetchScreen() {
   const [email, setEmail] = useState("");
   const [authLink, setAuthLink] = useState<string | null>(null);
-  const [rawResponse, setRawResponse] = useState<string | null>(null);
   const [jobEmails, setJobEmails] = useState<JobEmail[]>([]);
+  const [status, setStatus] = useState<
+    "idle" | "started" | "processing" | "done" | "error"
+  >("idle");
   const [loading, setLoading] = useState(false);
 
-  const fetchEmails = async () => {
+  const pollingRef = useRef<NodeJS.Timeout | null>(null);
+
+  /* ---------------- START JOB ---------------- */
+
+  const startFetch = async () => {
     if (!email.trim()) {
       alert("Please enter your email first.");
       return;
     }
 
     setLoading(true);
-    setRawResponse(null);
-    setJobEmails([]);
     setAuthLink(null);
+    setJobEmails([]);
+    setStatus("idle");
 
     try {
       const res = await fetch(
-        `https://pocket-backend-mjhf.onrender.com/emails/latest?user_email=${encodeURIComponent(
+        `${BACKEND}/emails/latest?user_email=${encodeURIComponent(
           email.trim()
         )}&limit=50`
       );
 
       const data = await res.json();
-      console.log("API DATA:", data);
+      console.log("START RESPONSE:", data);
 
       if (data.auth_url) {
         setAuthLink(data.auth_url);
-        setRawResponse(JSON.stringify(data, null, 2));
+        setLoading(false);
         return;
       }
 
-      if (data.job_emails) {
-        setJobEmails(data.job_emails);
+      if (data.status === "started" || data.status === "processing") {
+        setStatus("processing");
+        startPolling();
         return;
       }
-
-      setRawResponse(JSON.stringify(data, null, 2));
     } catch (err) {
-      console.log("FETCH ERROR:", err);
-      alert("Something went wrong. Check console.");
+      console.log("START ERROR:", err);
+      alert("Failed to start processing");
+      setStatus("error");
     } finally {
       setLoading(false);
     }
   };
+
+  /* ---------------- POLLING ---------------- */
+
+  const pollStatus = async () => {
+    try {
+      const res = await fetch(
+        `${BACKEND}/emails/status?user_email=${encodeURIComponent(
+          email.trim()
+        )}`
+      );
+      const data = await res.json();
+      console.log("POLL RESPONSE:", data);
+
+      if (data.status === "done") {
+        setJobEmails(data.job_emails || []);
+        setStatus("done");
+        stopPolling();
+      } else if (data.status === "error") {
+        setStatus("error");
+        stopPolling();
+      } else {
+        setStatus("processing");
+      }
+    } catch (err) {
+      console.log("POLL ERROR:", err);
+    }
+  };
+
+  const startPolling = () => {
+    if (pollingRef.current) return;
+
+    pollingRef.current = setInterval(pollStatus, 3000); // every 3s
+  };
+
+  const stopPolling = () => {
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current);
+      pollingRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    return () => stopPolling(); // cleanup on unmount
+  }, []);
+
+  /* ---------------- UI ---------------- */
 
   const openAuthLink = () => {
     if (authLink) {
@@ -81,7 +135,6 @@ export default function FetchScreen() {
         Gmail Job Tracker
       </Text>
 
-      {/* Email Input */}
       <TextInput
         placeholder="Enter your Gmail"
         value={email}
@@ -97,22 +150,25 @@ export default function FetchScreen() {
         }}
       />
 
-      {/* Fetch Button */}
       <Button
-        title={loading ? "Fetching..." : "Fetch Emails / Login"}
-        onPress={fetchEmails}
+        title={loading ? "Starting..." : "Fetch Emails / Login"}
+        onPress={startFetch}
         disabled={loading}
       />
 
-      {/* OAuth Button */}
       {authLink && (
-        <View>
-          <Button title="Open Google Authorization" onPress={openAuthLink} />
-        </View>
+        <Button title="Open Google Authorization" onPress={openAuthLink} />
       )}
 
-      {/* Job Results */}
-      {jobEmails.length > 0 && (
+      {status === "processing" && (
+        <Text style={{ fontSize: 16 }}>Processing emails… please wait ⏳</Text>
+      )}
+
+      {status === "error" && (
+        <Text style={{ color: "red" }}>Something went wrong. Try again.</Text>
+      )}
+
+      {status === "done" && jobEmails.length > 0 && (
         <View style={{ marginTop: 10 }}>
           <Text style={{ fontSize: 20, fontWeight: "bold" }}>
             Job Application Status
@@ -140,15 +196,6 @@ export default function FetchScreen() {
             </View>
           ))}
         </View>
-      )}
-
-      {/* Debug Output */}
-      {rawResponse && (
-        <Text style={{ marginTop: 20, fontFamily: "monospace" }}>
-          Raw Response:
-          {"\n"}
-          {rawResponse}
-        </Text>
       )}
     </ScrollView>
   );

@@ -21,17 +21,27 @@ async def get_all_jobs_email(email):
     print(f"all emails regarding jobs are {email}")
     return {"job_email":email}
 
+def smart_snippet(text: str, head=300, tail=200):
+    if len(text) <= head + tail:
+        return text
+    return text[:head] + "\n...\n" + text[-tail:]
+
 def normalize_emails(emails):
     normalized = []
     for e in emails:
+        body = e.get("snippet", "")
         normalized.append({
-            "id": e.get("id"),
-            "subject": e.get("subject", ""),
-            "from": e.get("from", ""),
+            "subject": e.get("subject", "")[:200],
+            "from": e.get("from", "")[:100],
             "date": e.get("date", ""),
-            "body": e.get("snippet", "")[:1500]  # trim hard
+            "body": smart_snippet(body),
         })
     return normalized
+
+def chunk_list(items, chunk_size):
+    for i in range(0, len(items), chunk_size):
+        yield items[i:i + chunk_size]
+
 
 
 
@@ -76,18 +86,14 @@ async def classify_job_emails(emails: list[dict]):
     try:
         return json.loads(raw)
     except Exception as e:
-        print("[AI ERROR] JSON parsing failed")
-        print("[AI ERROR] Raw response was:")
-        print(raw)
-
-        # Fallback: mark all emails as unknown
-        fallback = []
-        for e in emails:
-            fallback.append({
+        print("[AI ERROR] JSON parse failed. Falling back.")
+        return [
+            {
                 "company_name": e.get("from", "Unknown"),
                 "date": e.get("date", ""),
                 "verdict": "unknown"
-            })
+            }
+            for e in emails
+        ]
 
-        return fallback
 
